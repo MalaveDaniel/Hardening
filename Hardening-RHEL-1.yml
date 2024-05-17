@@ -1,0 +1,505 @@
+---
+- name: Plan inicial de configuracion, ajustes y actualizaciones
+  hosts: all
+  become: true
+  gather_facts: yes
+
+  tasks:
+    - name: 1.1.1. Verificar que el montaje del sistema de ficheros cramfs, freexvfs, jffs2, hfs, hfsplus, squashfs, udf, vfat está deshabilitado
+      block:
+        - name: 1.1.1. Verificar modificar el fichero cramfs
+          ansible.builtin.shell: grep "install cramfs /bin/true" /etc/modprobe.d/cramfs.conf
+          ignore_errors: true
+          register: cramfs_stat
+
+        - name: 1.1.1. Crear o modificar el fichero cramfs
+          ansible.builtin.shell: >
+            grep -q "install cramfs /bin/true" /etc/modprobe.d/cramfs.conf ||
+            echo "install cramfs /bin/true" >> /etc/modprobe.d/cramfs.conf
+          when: cramfs_stat.stdout == ""
+
+        - name: 1.1.1. Verificar modificar el fichero freevxfs
+          ansible.builtin.shell: grep "install freevxfs /bin/true" /etc/modprobe.d/freevxfs.conf
+          ignore_errors: true
+          register: freevxfs_stat
+
+        - name: 1.1.1. Crear o modificar el fichero freevxfs
+          ansible.builtin.shell: >
+            grep -q "install freevxfs /bin/true" /etc/modprobe.d/freevxfs.conf ||
+            echo "install freevxfs /bin/true" >> /etc/modprobe.d/freevxfs.conf
+          when: freevxfs_stat.stdout == ""
+
+        - name: 1.1.1. Verificar modificar el fichero jffs2
+          ansible.builtin.shell: grep "install jffs2 /bin/true" /etc/modprobe.d/jffs2.conf
+          ignore_errors: true
+          register: jffs2_stat
+
+        - name: 1.1.1. Crear o modificar el fichero jffs2
+          ansible.builtin.shell: >
+            grep -q "install jffs2 /bin/true" /etc/modprobe.d/jffs2.conf ||
+            echo "install jffs2 /bin/true" >> /etc/modprobe.d/jffs2.conf
+          when: jffs2_stat.stdout == ""
+        
+        - name: 1.1.1. Verificar modificar el fichero squashfs
+          ansible.builtin.shell: grep "install squashfs /bin/true" /etc/modprobe.d/squashfs.conf
+          ignore_errors: true
+          register: squashfs_stat
+
+        - name: 1.1.1. Crear o modificar el fichero squashfs
+          ansible.builtin.shell: >
+            grep -q "install squashfs /bin/true" /etc/modprobe.d/squashfs.conf ||
+            echo "install squashfs /bin/true" >> /etc/modprobe.d/squashfs.conf
+          when: squashfs_stat.stdout == ""
+
+        - name: 1.1.1. Verificar modificar el fichero udf
+          ansible.builtin.shell: grep "install udf /bin/true" /etc/modprobe.d/udf.conf
+          ignore_errors: true
+          register: udf_stat
+
+        - name: 1.1.1. Crear o modificar el fichero udf
+          ansible.builtin.shell: >
+            grep -q "install udf /bin/true" /etc/modprobe.d/udf.conf ||
+            echo "install udf /bin/true" >> /etc/modprobe.d/udf.conf
+          when: udf_stat.stdout == ""
+
+
+        - name: 1.1.2. Verificar la existencia de una partición separada para /tmp
+          ansible.builtin.shell: |
+           cat /run/systemd/generator/tmp.mount > /etc/systemd/system/tmp.mount 
+           echo "Options=defaults,nodev,nosuid,noexec" >> /etc/systemd/system/tmp.mount 
+           echo "#" >> /etc/systemd/system/tmp.mount 
+           echo "[Install]" >> /etc/systemd/system/tmp.mount 
+           echo "WanteBy=local-fs.target" >> /etc/systemd/system/tmp.mount 
+           systemctl daemon-reload 
+           systemctl enable tmp.mount
+          ignore_errors: true
+
+    #- name: 1.1.3. Verificar que la opción nodev, nosuid y noexec están habilitadas en la partición /tmp
+      #Se aplicó de forma manual
+
+    #- name: 1.1.4. Verificar que existe una partición para /var
+      #Se aplicó de forma manual
+
+    #- name: 1.1.5. Verificar que existe una partición para /var/tmp
+
+    #- name: 1.1.6. Verificar que las opcion nodev esta configurada en la partición /var/tmp
+      #Se aplicó de forma manual
+
+    #- name: 1.1.7. Verificar que las opcion nosuid esta configurada en la partición /var/tmp
+      #Se aplicó de forma manual
+
+    #- name: 1.1.8. Verificar que las opcion noexec esta configurada en la partición /var/tmp
+      #Se aplicó de forma manual
+
+    #- name: 1.1.9. Verificar que existe una partición separada para /var/log
+      #Se aplicó de forma manual
+
+    #- name: 1.1.10. Verificar que existe una partición separada para /home
+      #Se aplicó de forma manual
+
+    #- name: 1.1.11. Verificar que esta configuirada la opción nodev en la partición /home
+      #Se aplicó de forma manual
+
+    #- name: 1.1.12. Verificar que la opción nodev, nosuid, noexec está habilitada en la partición /dev/shm
+      #Se aplicó de forma manual
+
+    #- name: 1.1.13. Verificar que las opciones nodev, nosuid y noexec estan configuradas en las particiones de medios extraíbles
+      #Se aplicó de forma manual
+
+    #- name: 1.1.14. Verificar que el sticky bit está habilitado en los directorios de donde todos los usuarios pueden escribir
+      #Se aplicó de forma manual
+
+    #- name: 1.1.15. Deshabilitar el montado automático
+      #Se aplicó de forma manual
+
+    - name: 1.1.16. Deshabilitar almacenamiento USB
+      block:
+        - name: 1.1.16 Comprobar almacenamiento USB
+          ansible.builtin.command: modprobe -n -v usb-storage 
+          register: usb_strg
+          
+        - name: 1.1.16 Comprobar si existe usb-storage.conf #Comprueba si existe
+          ansible.builtin.stat:
+            path: "/etc/modprobe.d/usb-storage.conf"
+          register: usb_storage_conf_exists
+          
+        - name: 1.1.16 Instalar módulo usb_storage #Crea el archivo e instala
+          ansible.builtin.copy:
+            content: 'install usb-storage /bin/true'
+            dest: "/etc/modprobe.d/usb-storage.conf"
+          when: not usb_storage_conf_exists.stat.exists #Chequear
+          
+        - name: 1.1.16 Eliminar el kernel de almacenamiento usb
+          ansible.builtin.command: rmmod usb-storage
+          when: "'install /bin/true' not in usb_strg.stdout"
+
+   # - name: 1.2.1. Verificar que la conexión al gestor de subscripciones de Red Hat está configurado 
+     # block:
+       # - name: 1.2.1 Mostrar información sobre la suscripción del sistema
+         # ansible.builtin.command: subscription-manager register
+         # ignore_errors: yes
+
+    #- name: 1.2.2. Desactivar el demonio rhnsd
+      #block:
+       # - name: 1.2.2 Verificar si el demonio rhnsd esta habilitado
+         # ansible.builtin.command: systemctl is-enabled rhnsd
+         # register: rhnsd_check
+         # ignore_errors: yes   
+
+       # - name: 1.2.2 Deshabilitar el demonio rhnsd
+        #  ansible.builtin.systemd:
+          #  name: rhnsd
+          #  state: stopped
+          #  enabled: false
+          #when: 'rhnsd_check.stdout == "enabled"'
+          #ignore_errors: yes
+
+    - name: 1.2.3. Verificar que las llaves GPG están configuradas
+      ansible.builtin.shell:
+        rpm --import /etc/pki/rpm-gpg/RPM-GPG-KEY-redhat-release
+        rpm -qa gpg-pubkey*
+      ignore_errors: true
+
+    #- name: 1.2.4. Verificar que gpgcheck está activado globalmente
+     # block:
+      #  - name: 1.2.4 Obtener el valor de gpgcheck en /etc/yum.conf
+       #   ansible.builtin.shell: grep '^gpgcheck' /etc/yum.conf
+        #  register: gpgcheck_output
+         # failed_when: False
+
+        #- name: 1.2.4 Obtener configuraciones de gpgcheck
+        #  ansible.builtin.shell: "ls -1 /etc/yum.repos.d/ | xargs grep '^gpgcheck'"
+        #  register: gpgcheck_repos
+        #  failed_when: False
+
+       # - name: 1.2.4 Modificar /etc/yum.conf
+          #ansible.builtin.lineinfile:
+          #  path: /etc/yum.conf
+          #  regexp: '^gpgcheck'
+          #  insertafter: '[main]'
+          #  line: 'gpgcheck=1'
+         # when: gpgcheck_output.stdout.split('=')[1] | trim != '1' or gpgcheck_repos.stdout != ""
+
+       # - name: 1.2.4 Buscar archivos con errores en /etc/yum.repos.d/
+        #  ansible.builtin.find:
+        #    paths: "/etc/yum.repos.d/"
+        #  register: repo_files
+
+       # - name: 1.2.4 Configurar gpgcheck en '1'
+         # ansible.builtin.replace:
+         #   path: "{{ item.path }}"
+         #   regexp: '(gpgcheck\s*=\s*)[0-9]+'
+         #   replace: '\gpgcheck=1'
+         # with_items: "{{ repo_files.files }}"
+         # when: gpgcheck_output.stdout.split('=')[1] | trim != '1' or gpgcheck_repos.stdout != ""
+
+    #- name: 1.2.5. Verificar que el paquete gestor de repositorios está configurado
+      #Se aplicó de forma manual
+
+
+    #- name: 1.3.1. Verificar que esta instalado sudo
+     # block:
+     #   - name: Verificar que sudo esté instalado
+     #     ansible.builtin.command: rpm -q sudo
+     #     register: sudo_check
+          
+      #  - name: Instalar sudo
+      #    ansible.builtin.shell:
+      #      yum install sudo -yes
+      #    when: sudo_check.rc == 1
+
+    #- name: 1.3.2. Verificar que los comandos sudo usa pty
+      #Se aplicó de forma manual
+
+    #- name: 1.3.3. Verificar que existe un archivo de logs para sudo
+      #Se aplicó de forma manual
+
+    - name: 1.4.1. Verificar que AIDE está instalado
+      block:
+        - name: 1.4.1 Verificar que AIDE esté instalado
+          ansible.builtin.command: rpm -q aide
+          register: aide_check
+          failed_when: false
+          
+        - name: 1.4.1 Instalar AIDE
+          ansible.builtin.shell:
+            yum install aide -y
+          when: 'aide_check.stdout == "package aide is not installed"'
+          failed_when: false
+
+        - name: 1.4.1 Inicializar AIDE
+          ansible.builtin.shell: aide --init  
+          when: aide_check.rc == 0
+        
+        #- name: 1.4.1 Mover el archivo aide.db.new.gz a aide.db.gz
+        #  ansible.builtin.command: mv /var/lib/aide/aide.db.new.gz /var/lib/aide/aide.db.gz
+        #  when: aide_check.rc == 0
+
+    - name: 1.4.2. Verificar que la integridad del sistema de ficheros es chequeada regularmente #Se aplicó de manera manual
+      block:
+        - name: 1.4.2 Establecer crontab para root
+          ansible.builtin.shell: "echo 0 5 * * * /usr/sbin/aide --check >> /etc/crontab' | crontab /etc/crontab"
+
+        #- name: 1.4.2 Verificar crontab para root
+        #  ansible.builtin.shell: "crontab -u root -l"
+        #  register: crontab_root
+
+        - name: 1.4.2 Agregar tarea a crontab si no existe
+          ansible.builtin.shell: "echo 0 5 * * * /usr/sbin/aide --check >> /etc/crontab"
+          when: "'0 5 * * * /usr/sbin/aide --check' not in crontab_root.stdout_lines"
+
+
+    - name: 1.5.1. Verificar que los permisos en bootloader están configurados 
+      block:
+        - name: 1.5.1 Comprobar permisos bootloader en /boot/grub2/grub.cfg
+          ansible.builtin.command: stat /boot/grub2/grub.cfg
+          register: stat_grubcfg
+
+        - name: 1.5.1 Comprobar permisos bootloader en /boot/grub2/grubenv
+          ansible.builtin.command: stat /boot/grub2/grubenv
+          register: stat_grubenv
+
+        - name: 1.5.1 Establecer permisos en /boot/grub2/grub.cfg y /boot/grub2/grubenv
+          ansible.builtin.shell: |
+            chown root:root /boot/grub2/grub.cfg
+            chmod og-rwx /boot/grub2/grub.cfg
+            chown root:root /boot/grub2/grubenv
+            chmod og-rwx /boot/grub2/grubenv
+
+    # - name: 1.5.2. Verificar que la contraseña de bootloader está configurada
+    #Se aplicó de forma manual
+
+    #- name: 1.5.3. Verificar que se requiere autenticación para el modo de usuario único
+    #Se aplicó de forma manual
+
+    - name: 1.6.1. Verificar que los volcados del núcleo están restringidos
+      block:
+        - name: 1.6.1 Comprobar si fs.suid_dumpable ya está presente en /etc/sysctl.conf
+          ansible.builtin.shell: grep fs.suid_dumpable /etc/sysctl.conf
+          register: fs_suid_search
+          ignore_errors: true
+
+        - name: 1.6.1 Agregar límite a los volcados de núcleo al kernel
+          ansible.builtin.shell: |
+            echo "fs.suid_dumpable = 0" >> /etc/sysctl.conf
+            sysctl -w fs.suid_dumpable=0
+          when: fs_suid_search.stdout == ""
+        
+        - name: 1.6.1 Buscar hardcore
+          ansible.builtin.shell: grep "*                hard    core            0" /etc/security/limits.conf
+          register: limits_content
+          ignore_errors: true
+          
+        - name: 1.6.1 Agregar línea a /etc/security/limits.conf o a un archivo en /etc/security/limits.d/
+          ansible.builtin.shell: |
+            echo '*                hard    core            0' >> /etc/security/limits.conf
+          when: limits_content.stdout == ""
+
+    - name: 1.6.2. Verificar que el espacio de direcciones aleatorio está habilitado (ASLR)
+      block:
+        - name: 1.6.2 Obtener actual valor de espacio de direcciones aleatorio
+          ansible.builtin.shell:
+            sysctl kernel.randomize_va_space
+            grep "kernel\.randomize_va_space" /etc/sysctl.conf /etc/sysctl.d/*
+          register: random_va_space
+          ignore_errors: yes
+
+        - name: 1.6.2 Editar el archivo /etc/sysctl.conf
+          ansible.builtin.lineinfile:
+            path: /etc/sysctl.conf
+            regexp: '^kernel.randomize_va_space'
+            line: 'kernel.randomize_va_space = 2'
+          when: "random_va_space.stdout_lines[0].split('=')[1] != '2'"
+          
+        - name: 1.6.2 Establecer parametros activos del kernel
+          ansible.builtin.command: sysctl -w kernel.randomize_va_space=2
+          when: "random_va_space.stdout_lines[0].split('=')[1] != '2'"
+
+    #- name: 1.7.1. Verificar que SELinux está instalado
+    #  block:
+    #    - name: 1.7.1 Verificar que SELinux esté instalado
+    #      ansible.builtin.command: rpm -q libselinux
+    #      register: libselinux_check
+    #      
+    #    - name: 1.7.1 Instalar SELinux
+    #      ansible.builtin.yum:
+    #        name: libselinux
+    #        state: latest
+    #      when: libselinux_check.rc != 0
+
+            #- name: 1.7.2. Verificar que SELinux noestá deshabilitado en la configuración de bootloader
+    # Se aplicó de forma manual
+
+    #- name: 1.7.3. Verirficar que el estado de SELinux se cumple
+    #  block:
+    #    - name: 1.7.3 Obtener configuracion de SELinux
+    #      ansible.builtin.shell: grep SELINUX=enforcing /etc/selinux/config
+    #      register: se_stat_cfg
+
+    #    - name: 1.7.3 Obtener estado de SELinux
+    #      ansible.builtin.command: sestatus
+    #      register: selinux_stat
+        
+    #    - name: 1.7.3 Editar el archivo /etc/selinux/config
+    #      ansible.builtin.lineinfile:
+    #        path: /etc/selinux/config
+    #        regexp: '^SELINUX'
+    #        line: 'SELINUX=enforcing'
+    #      when: "'enforcing' not in se_stat_cfg.stdout or 'enforcing' not in selinux_stat.stdout"
+
+    #- name: 1.7.4. Verificar que no existan servicios ilimitados
+    #  ansible.builtin.shell: ps -eZ | grep unconfined_service_t
+    #  register: unconfined_srv
+    #  ignore_errors: true
+    #  failed_when: unconfined_srv.stdout_lines | length > 0
+
+    #- name: 1.7.5. Verificar que SETroubleshoot no está instalado
+    #  block:
+    #    - name: 1.7.5 Verificar si SETroubleshoot no esta instalado
+    #      ansible.builtin.command: rpm -q setroubleshoot
+    #      register: setroubleshoot_check
+    #      failed_when: false
+
+    #    - name: 1.7.5 Eliminar SETroubleshoot
+    #      ansible.builtin.yum:
+    #        name: setroubleshoot
+    #        state: absent
+    #      when: setroubleshoot_check.rc == 0
+          
+    #- name: 1.7.6. Verificar que el servicio de traducción MCS (mcstrans) no está instalado
+    #  block:
+    #    - name: 1.7.6 Verificar si mcstrans no esta instalado
+    #      ansible.builtin.command: rpm -q mcstrans
+    #      register: mcstrans_check
+    #      failed_when: false
+
+    #    - name: 1.7.6 Eliminar el servicio de traducción MCS
+    #      ansible.builtin.yum:
+    #        name: mcstrans
+    #        state: absent
+    #      when: mcstrans_check.rc == 0
+
+######
+    - name: 1.8.1. Verificar que el mensaje del día está configurado adecuadamente
+      block:
+        - name: 1.8.1 Verificar que el mensaje del día está configurado adecuadamente
+          ansible.builtin.shell: grep "ACCESO RESTRINGIDO A PERSONAL AUTORIZADO" /etc/motd
+          register: etcmod_stat
+          ignore_errors: true
+
+        - name: 1.8.1 Escribir el banner en /etc/motd
+          ansible.builtin.shell: |
+            echo "-----------------------------------------------------------------------------" >> /etc/motd
+            echo "| AVISO: ha accedido a un sistema restringido, propiedad de Banco de        |" >> /etc/motd
+            echo "| Venezuela S.A. Banco Universal.                                           |" >> /etc/motd
+            echo "| Necesita tener autorizacion antes de usarlo, estando usted limitado       |" >> /etc/motd
+            echo "| estrictamente al uso indicado en dicha autorizacion. El acceso no         |" >> /etc/motd
+            echo "| autorizado a este sistema o el uso indebido del mismo esta prohibido y    |" >> /etc/motd
+            echo "| es contrario a  la Politica de Seguridad corporativa y a la legislacion   |" >> /etc/motd
+            echo "| vigente.                                                                  |" >> /etc/motd
+            echo "-----------------------------------------------------------------------------" >> /etc/motd
+            echo " " >> /etc/motd
+          when: etcmod_stat.stdout == ""
+
+    - name: 1.8.2. Verificar que el mensaje del día está configurado adecuadamente
+      block:
+        - name: 1.8.2 Verificar que el mensaje del día está configurado adecuadamente
+          ansible.builtin.shell: grep "ACCESO RESTRINGIDO A PERSONAL AUTORIZADO" /etc/issue
+          register: issue_stat
+          ignore_errors: true
+
+        - name: 1.8.2 Escribir el banner en /etc/issue
+          ansible.builtin.shell: |
+            echo "***************************************************************************************" >> /etc/issue
+            echo "**                           BANCO DE VENEZUELA                                      **" >> /etc/issue
+            echo "**  AVISO: para acceder a este sistema necesita estar previamente autorizado,        **" >> /etc/issue
+            echo "**  estando usted estrictamente limitado al uso indicado en dicha autorizacion. El   **" >> /etc/issue
+            echo "**  acceso no autorizado a este sistema o el uso indebido del mismo esta prohibido   **" >> /etc/issue
+            echo "**  y es contrario a la legislacion vigente. El uso que realice de este sistema      **" >> /etc/issue
+            echo "**  esta siendo monitoreado.                                                         **" >> /etc/issue
+            echo "***************************************************************************************" >> /etc/issue
+            echo " " >> /etc/issue
+          when: issue_stat.stdout == ""
+
+    - name: 1.8.3. Verificar que el mensaje del día está configurado adecuadamente
+      block:
+        - name: 1.8.3 Verificar que el mensaje del día está configurado adecuadamente
+          ansible.builtin.shell: grep "para acceder a este sistema" /etc/issue.net
+          register: issuenet_stat
+          ignore_errors: true
+
+        - name: 1.8.3 Escribir el banner en  /etc/issue.net
+          ansible.builtin.shell: |
+            echo "***************************************************************************************" >> /etc/issue.net
+            echo "**                            BANCO DE VENEZUELA                                     **" >> /etc/issue.net
+            echo "**  AVISO: para acceder a este sistema necesita estar previamente autorizado,        **" >> /etc/issue.net
+            echo "**  estando usted estrictamente limitado al uso indicado en dicha autorizacion. El   **" >> /etc/issue.net
+            echo "**  acceso no autorizado a este sistema o el uso indebido del mismo esta prohibido   **" >> /etc/issue.net
+            echo "**  y es contrario a la legislacion vigente. El uso que realice de este sistema      **" >> /etc/issue.net
+            echo "**  esta siendo monitoreado.                                                         **" >> /etc/issue.net
+            echo "***************************************************************************************" >> /etc/issue.net
+            echo "" >> /etc/issue.net
+          when: issuenet_stat.stdout == ""
+
+######
+
+    - name: 1.8.4. Verificar que los permisos en /etc/motd están configurados
+      block:
+        - name: 1.8.4 Comprobar permisos en /etc/motd
+          ansible.builtin.command: stat /etc/motd
+          register: stat_motd
+
+        - name: 1.8.4 Establecer permisos en /etc/motd
+          ansible.builtin.file:
+            path: /etc/motd
+            owner: root
+            group: root
+            mode: '0644'
+          when: "'Access: (0644/-rw-r--r--) Uid: ( 0/ root) Gid: ( 0/ root)' not in stat_motd.stdout"
+
+    - name: 1.8.5. Verificar que los permisos en /etc/issue están configurados
+      block:
+        - name: 1.8.5 Comprobar permisos en /etc/issue
+          ansible.builtin.command: stat /etc/issue
+          register: stat_issue
+
+        - name: 1.8.5 Establecer permisos en /etc/issue
+          ansible.builtin.file:
+            path: /etc/issue
+            owner: root
+            group: root
+            mode: '0644'
+          when: "'Access: (0644/-rw-r--r--) Uid: ( 0/ root) Gid: ( 0/ root)' not in stat_issue.stdout"
+
+    - name: 1.8.6. Verificar que los permisos en /etc/issue.net están configurados
+      block:
+        - name: 1.8.6 Comprobar permisos en /etc/issue.net
+          ansible.builtin.command: stat /etc/issue.net
+          register: stat_issue_net
+
+        - name: 1.8.6 Establecer permisos en /etc/issue.net
+          ansible.builtin.file:
+            path: /etc/issue.net
+            owner: root
+            group: root
+            mode: '0644'
+          when: "'Access: (0644/-rw-r--r--) Uid: ( 0/ root) Gid: ( 0/ root)' not in stat_issue_net.stdout"
+
+   #- name: 1.8.7. Verificar que esta configurado el banner del login de GDM 
+    # Se aplicó de forma manual
+
+    #- name: 1.9. Verificar que actualizaciones, parches y software adiccional de seguridad está instalado
+    #  block:
+    #    - name: 1.9. Comprobar si se encuntran actualizaciones de seguridad por instalar
+    #      ansible.builtin.command: dnf check-update --security
+    #      register: dnf_update
+    #      ignore_errors: true
+
+    #    - name: 1.9. Actualizar los paquetes de seguridad
+    #      ansible.builtin.command: "dnf update --security -y"
+    #      when: "'updates' in dnf_update.stdout"
+    #      ignore_errors: true
+          
+     #- name: 1.10. Verificar que la política de cifrado de todo el sistema no sea heredada
+    # Se aplicó de forma manual
+
