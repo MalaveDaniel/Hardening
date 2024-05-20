@@ -1,0 +1,363 @@
+---
+- name: Servicios
+  hosts: all
+  become: true
+  gather_facts: yes
+
+  tasks:
+    - name: 2.1.1. Verificar que xinetd no se encuentre instalado en el sistema
+      block:
+        - name: 2.1.1 Verificar si xinetd no está instalado
+          ansible.builtin.command: rpm -q xinetd
+          register: xinetd_check
+          failed_when: false
+
+        - name: 2.1.1 Eliminar xinetd
+          ansible.builtin.yum:
+            name: xinetd
+            state: absent
+          when: xinetd_check.rc == 0
+
+
+    - name: 2.2.1. Verificar que la sincronización horaria está en uso
+      block:
+        - name: 2.2.1 Verificar que Chrony esté instalado
+          ansible.builtin.command: rpm -q chrony
+          register: chrony_check
+          failed_when: false
+
+        - name: 2.2.1 Instalar chrony
+          ansible.builtin.yum:
+            name: chrony
+            state: latest
+          when: 'chrony_check.stdout == "package chrony is not installed"'
+          failed_when: false
+   
+        - name: Verificar el estado del servicio Chrony
+          ansible.builtin.systemd:
+            name: chronyd
+            state: started
+            enabled: yes
+          register: chronyd_status
+
+        - name: Iniciar Chrony si está inactivo
+          ansible.builtin.systemd:
+            name: chronyd
+            state: started
+          when: chronyd_status.changed
+
+
+    - name: 2.2.1.1. Verificar que Chrony este configurado
+      block:
+        - name:  2.2.1.1 Verificar configuración en /etc/chrony.conf
+          ansible.builtin.shell: grep "^(server|pool)" /etc/chrony.conf
+          register: chrony_config
+          changed_when: false
+          ignore_errors: true  # Ignorar errores si el archivo no existe o está vacío
+        
+        - name: 2.2.1.1 Crear archivo /etc/chrony.conf si no existe
+          ansible.builtin.shell: |
+            sed -i "/log measurements statistics tracking/a server 172.16.50.245 prefer" /etc/chrony.conf
+            sed -i "/server 172.16.50.245 prefer/a server 10.0.0.2" /etc/chrony.conf
+          
+
+        #- name:  2.2.1.1 Agregar servidor remoto a /etc/chrony.conf
+        #  ansible.builtin.lineinfile:
+        #    path: /etc/chrony.conf
+        #    regexp: '^(server|pool)'
+        #   line: 'server 10.0.0.2'
+        #  when: chrony_config.rc == 0 and "'server 10.0.0.2' not in chrony_config.stdout"
+
+
+    - name: 2.2.2. Verificar que el sistema X Window no está instalado
+      block:
+        - name:  2.2.2 Verificar si xorg-x11 esta instalado
+          ansible.builtin.command: rpm -qa 'xorg-x11*'
+          register: xorg_check
+          failed_when: false
+
+
+        - name:  2.2.2 Remover paquetes xorg-x11*
+          ansible.builtin.yum:
+            name: "{{ item }}"
+            state: absent
+          with_items:
+            - xorg-x11*
+          when: xorg_check.rc == 0
+
+
+    - name: 2.2.3. Verificar que el servicio rsync no está habilitado
+      block:
+        - name: 2.2.3 Verificar si rsync esta habilitado
+          ansible.builtin.command: systemctl is-enabled rsyncd
+          register: rsyncd_check
+          failed_when: false
+
+        - name: 2.2.3 Deshabilitar rsyncd
+          ansible.builtin.systemd:
+            name: rsyncd
+            state: stopped
+            enabled: false
+          when: rsyncd_check.stdout == "enabled\n"
+
+
+    - name: 2.2.4. Verificar que el servidor Avahi no está habilitado
+      block:
+        - name: 2.2.4 Verificar si Avahi esta instalado
+          ansible.builtin.command: rpm -q avahi
+          register: avahi_installed
+          changed_when: false
+          ignore_errors: true
+        
+        - name: 2.2.4 Verificar si avahi está habilitado
+          ansible.builtin.command: systemctl is-enabled avahi-daemon
+          register: avahi_check
+          changed_when: false
+          ignore_errors: true
+          when: avahi_installed.rc == 0
+
+        - name: 2.2.4 Deshabilitar avahi si está habilitado
+          ansible.builtin.systemd:
+            name: avahi-daemon
+            state: stopped
+            enabled: false
+          when: avahi_installed.rc == 0 and avahi_check.stdout == "enabled\n"
+
+
+    - name: 2.2.5. Verificar que el servidor SNMP no este habilitado
+      block:
+        - name: 2.2.5. Verificar si SNMP esta instalado
+          ansible.builtin.command: rpm -q net-snmp
+          register: snmp_installed
+          changed_when: false
+          ignore_errors: true
+
+        - name: 2.2.5 Verificar si SNMP está habilitado
+          ansible.builtin.command: systemctl is-enabled snmpd
+          register: snmp_check
+          changed_when: false
+          ignore_errors: true
+          when: snmp_installed.rc == 0
+
+
+        - name: 2.2.5. Deshabilitar el servidor SNMP
+          ansible.builtin.systemd:
+            name:  snmpd
+            state: stopped
+            enabled: false
+          when: snmp_installed.rc == 0 and snmp_check.stdout == "enabled\n"
+
+
+    - name: 2.2.6. Verificar que servidor proxy HTTP no está habilitado
+      block:
+        - name: 2.2.6. Verificar si el servicio squid esta habilitado
+          ansible.builtin.command: systemctl is-enabled squid
+          register: squid_check
+          failed_when: false
+
+        - name: 2.2.6. Deshabilitar el servidor proxy HTTP
+          ansible.builtin.systemd:
+            name: squid
+            state: stopped
+            enabled: false
+          when: squid_check.stdout == "enabled\n"
+
+
+    - name: 2.2.7. Verificar que Samba no está habilitado
+      block:
+        - name: 2.2.7 Verificar si Samba esta habilitado
+          ansible.builtin.command: systemctl is-enabled smb
+          register: samba_check
+          failed_when: false
+
+        - name: 2.2.7 Deshabilitar Samba
+          ansible.builtin.systemd:
+            name: smb
+            state: stopped
+            enabled: false
+          when: samba_check.stdout == "enabled\n"
+
+
+    - name: 2.2.8. Verificar que el servicio IMAP y POP3 no está habilitado
+      block:
+        - name: 2.2.8 Verificar si el servicio IMAP y POP3 esta habilitado
+          ansible.builtin.command: systemctl is-enabled dovecot
+          register: dovecot_check
+          failed_when: false
+
+        - name: 2.2.8 Deshabilitar dovecot
+          ansible.builtin.systemd:
+            name: dovecot
+            state: stopped
+            enabled: false
+          when: dovecot_check.stdout == "enabled\n"
+
+
+    - name: 2.2.9. Verificar que el servidor HTTP no este habilitado
+      block:
+        - name: 2.2.9 Verificar si el servidor HTTP esta habilitado
+          ansible.builtin.command: systemctl is-enabled httpd
+          register: httpd_check
+          failed_when: false
+
+        - name: 2.2.9 Deshabilitar el servidor HTTP
+          ansible.builtin.systemd:
+            name: httpd
+            state: stopped
+            enabled: false
+          when: httpd_check.stdout == "enabled\n"
+
+
+    - name: 2.2.10. Verificar que el servidor FTP no está habilitado
+      block:
+        - name: 2.2.10 Verificar si el servidor FTP esta habilitado
+          ansible.builtin.command: systemctl is-enabled vsftpd
+          register: FTP_check
+          failed_when: false
+
+        - name: 2.2.10 Deshabilitar el servidor FTP
+          ansible.builtin.systemd:
+            name: vsftpd
+            state: stopped
+            enabled: false
+          when: FTP_check.stdout == "enabled\n"
+
+
+    - name: 2.2.11. Verificar que el servidor DNS no está habilitado
+      block:
+        - name: 2.2.11 Verificar si el servidor DNS esta habilitado
+          ansible.builtin.command: systemctl is-enabled named
+          register: DNS_check
+          failed_when: false
+
+        - name: 2.2.11 Deshabilitar el servidor DNS
+          ansible.builtin.systemd:
+            name: named
+            state: stopped
+            enabled: false
+          when: DNS_check.stdout == "enabled\n"
+
+
+    - name: 2.2.12. Verificar que NFS y RPC no están habilitados
+      block:
+      - name: 2.2.12 Comprobar si nfs y rpcbind están habilitados
+        ansible.builtin.command: systemctl is-enabled {{ item }}
+        register: service_status
+        changed_when: False
+        ignore_errors: True
+        loop:
+          - nfs
+          - rpcbind
+
+      - name: 2.2.12 Deshabilitar NFS y RPC
+        ansible.builtin.systemd:
+          name: "{{ item.item }}"
+          state: stopped
+          enabled: False
+        when: item.stdout == "enabled"
+        loop: "{{ service_status.results }}"
+
+
+    - name: 2.2.13. Verificar que el servidor LDAP no está habilitado
+      block:
+        - name: 2.2.13 Verificar si el servidor LDAP esta habilitado
+          ansible.builtin.command: systemctl is-enabled slapd
+          register: LDAP_check
+          failed_when: false
+
+        - name: 2.2.13 Deshabilitar el servicio LDAP
+          ansible.builtin.systemd:
+            name: slapd
+            state: stopped
+            enabled: false
+          when: LDAP_check.stdout == "enabled\n"
+
+
+    - name: 2.2.14. Verificar que el servidor DHCP no está habilitado
+      block:
+        - name: 2.2.14 Verificar si el servidor DHCP esta habilitado
+          ansible.builtin.command: systemctl is-enabled dhcpd
+          register: DHCP_check
+          failed_when: false
+
+        - name: 2.2.14 Deshabilitar el servidor DHCP
+          ansible.builtin.systemd:
+            name: dhcpd
+            state: stopped
+            enabled: false
+          when: DHCP_check.stdout == "enabled\n"
+
+
+    #- name: 2.2.15. Verificar que CUPS no está habilitado
+    #  block:
+    #    - name: 2.2.15.  Verificar si CUPS esta habilitado
+    #      ansible.builtin.command:  systemctl is-enabled cups
+    #      register: CUPS_check
+    #      failed_when: false
+
+    #    - name: 2.2.15.  Deshabilitar CUPS
+    #      ansible.builtin.systemd:
+    #        name: cups
+    #        state: stopped
+    #        enabled: false
+    #      when: CUPS_check.stdout == "enabled\n"
+
+
+    #- name: 2.2.16. Verificar que el servidor NIS no está habilitado
+    #  block:
+    #    - name: 2.2.16 Verificar si el servidor NIS esta habilitado
+    #      ansible.builtin.command:  systemctl is-enabled ypserv
+    #      register: NIS_check
+    #      failed_when: false
+
+    #    - name: 2.2.16 Deshabilitar el servidor NIS
+    #      ansible.builtin.systemd:
+    #        name: ypserv
+    #        state: stopped
+    #        enabled: false
+    #      when: NIS_check.stdout == "enabled\n"
+
+
+    # - name: 2.2.17. Verificar que el agente de transferencia de correo está configurado en modo solo-local
+    # Se aplicó de forma manual
+
+
+    #- name: 2.3.1. Verificar que el cliente NIS no se encuentre instalado
+    #  block:
+    #    - name: 2.3.1. Verificar si el cliente NIS no esta instalado
+    #      ansible.builtin.command: rpm -q ypbind
+    #      register: ypbind_check
+    #      ignore_errors: true  # Ignorar errores si el paquete no está instalado
+
+    #    - name: 2.3.1. Eliminar ypbind si está instalado
+    #      ansible.builtin.yum:
+    #        name: ypbind
+    #        state: absent
+    #      when: ypbind_check.rc == 0  # Ejecutar solo si el paquete está instalado
+
+#    - name: 2.3.2. Verificar que el cliente telnet no este instalado
+#      block:
+#        - name: 2.3.2 Verificar si el cliente telnet no esta instalado
+#          ansible.builtin.command: rpm -q telnet
+#          register: telnet_check
+#
+#        - name: 2.3.2 Eliminar telnet
+#          ansible.builtin.yum:
+#            name: telnet
+#            state: absent
+#          when: telnet_check.rc == 0
+
+#    - name: 2.3.3. Verificar que el cliente LDAP no este instalado
+#      block:
+#        - name: 2.3.3 Verificar si el cliente LDAP no esta instalado
+#          ansible.builtin.command: rpm -q openldap-clients
+#          register: ldap_client_check
+#          ignore_errors: true  # Ignorar errores si el paquete no está instalado
+
+
+#        - name: 2.3.3 Eliminar openldap-clients
+#          ansible.builtin.yum:
+#            name: openldap-clients
+#            state: absent
+#          when: ldap_client_check.rc == 0  # Ejecutar solo si el paquete está instalado
+
