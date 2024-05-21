@@ -541,13 +541,6 @@
 
     #- name: 4.2.4. Verificar que esta configurado el logging
 
-
-    #- name: 4.2.5. Verificar que rsyslog está configurado para el envío de logs al host remoto de logs
-
-
-    #- name: 4.2.6. Verificar que los mensajes remotos de rsyslog son solo aceptados en los hosts de logs designados
-
-
     - name: 4.2.5. 4.2.6 Verificar que rsyslog está configurado para el envío de logs al host remoto de logs
       block:
         - name: 4.2.5. 4.2.6 Verificar que rsyslog está configurado para el envío de logs al host remoto de logs
