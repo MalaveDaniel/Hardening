@@ -1,0 +1,656 @@
+---
+- name: Registro y auditoria
+  hosts: all
+  become: true
+  gather_facts: yes
+
+  tasks:
+    - name: 4.1.1. Verificar que el servicio auditd está instalado
+      block:
+        - name: 4.1.1 Listar audit-libs y ver que esté instalado
+          ansible.builtin.command: rpm -q audit audit-libs
+          register: audit_libs_check
+          changed_when: false
+        
+        - name: 4.1.1 Instalar audit audit-libs
+          ansible.builtin.yum:
+            name: audit audit-libs
+            state: latest
+          when: "audit_libs_check.rc != 0"
+
+    
+    - name: 4.1.2. Verificar que el servicio auditd está habilitado
+      block: 
+        - name: 4.1.2 Comprobar si el servicio auditd está habilitado
+          ansible.builtin.command: systemctl is-enabled auditd
+          register: auditd_status
+          changed_when: false
+
+        - name: 4.1.2 Habilita el servicio auditd si no está habilitado
+          service:
+            name: auditd
+            state: started
+          when: auditd_status.rc != 0
+
+    - name: 4.1.3 y 4.1.4. Activar auditoría para los procesos que arrancan antes que el demonio auditd
+      block:
+        - name: 4.1.3 y 4.1.4. Buscar regla
+          ansible.builtin.command: "grep 'GRUB_CMDLINE_LINUX=' /etc/default/grub"
+          register: grep_result
+          ignore_errors: true
+
+        - name: 4.1.3 y 4.1.4. Activar auditoría para los procesos que arrancan antes que el demonio auditd
+          ansible.builtin.shell: |
+           sed -i "s/GRUB_CMDLINE_LINUX=/GRUB_CMDLINE_LINUX=\"audit=1 audit_backlog_limit=8192\"/g" /etc/default/grub
+          when: grep_result.stdout != ""
+          changed_when: false 
+      
+    - name: 4.1.5. Verificar que el tamaño de almacenamiento de log de auditoría está configurado
+      block: 
+        - name: 4.1.5 Comprobar el tamaño de almacenamiento del log de auditoría
+          ansible.builtin.shell: grep "max_log_file" /etc/audit/auditd.conf
+          register: max_log_file_stat
+          ignore_errors: true
+
+        - name: 4.1.5 Editar el fichero /etc/audit/auditd.conf
+          ansible.builtin.shell: |
+            sed -i 's/^max_log_file[[:space:]]*=[[:space:]]*[0-9]*$/max_log_file = 32/g' /etc/audit/auditd.conf
+          when: max_log_file_stat.stdout != ''
+          changed_when: false
+
+    - name: 4.1.6. Verificar que los logs de los audits no son borrados automaticamente
+      block:
+        - name: 4.1.6 Comprobar la accion de los logs de auditoría
+          ansible.builtin.command: grep max_log_file_action /etc/audit/auditd.conf || true  
+          register: log_action
+          changed_when: false
+          ignore_errors: true
+
+        - name: 4.1.6 Editar el fichero /etc/audit/auditd.conf
+          ansible.builtin.lineinfile:
+            path: /etc/audit/auditd.conf
+            regexp: '^max_log_file_action'
+            line: 'max_log_file_action = keep_logs'
+          when: log_action.stdout == ""
+
+    - name: 4.1.7. Verificar que el sistema se deshabilita cuando los logs de los audits estan llenos
+      block:
+        - name: 4.1.7 Comprobar la accion de los logs de auditoría
+          ansible.builtin.command: grep space_left_action /etc/audit/auditd.conf || true
+          register: sp_act
+          changed_when: false
+          ignore_errors: true
+
+        - name: 4.1.7 Editar el fichero /etc/audit/auditd.conf
+          ansible.builtin.lineinfile:
+            path: /etc/audit/auditd.conf
+            regexp: "^space_left_action"
+            line: "space_left_action = email"
+          when: sp_act.stdout == ""
+
+        - name: 4.1.7 Comprobar la accion de los logs de auditoría
+          ansible.builtin.command: grep action_mail_acct /etc/audit/auditd.conf || true
+          register: mail_act
+          changed_when: false
+          ignore_errors: true
+
+        - name: 4.1.7 Editar el fichero /etc/audit/auditd.conf
+          ansible.builtin.lineinfile:
+            path: /etc/audit/auditd.conf
+            regexp: "^action_mail_acct"
+            line: "action_mail_acct = root"
+          when: mail_act.stdout == ""
+
+        - name: 4.1.7 Comprobar la accion de los logs de auditoría
+          ansible.builtin.command: grep admin_space_left_action /etc/audit/auditd.conf || true
+          register: adm_act
+          changed_when: false
+          ignore_errors: true
+
+        - name: 4.1.7 Editar el fichero /etc/audit/auditd.conf
+          ansible.builtin.lineinfile:
+            path: /etc/audit/auditd.conf
+            regexp: "^admin_space_left_action"
+            line: "admin_space_left_action = halt"
+          when: adm_act.stdout == ""
+
+      
+    - name: 4.1.8. Verificar que los cambios del ámbito del sistema de administración se recogen
+      block:
+        - name: Verificar si las reglas de ámbito ya están configuradas
+          shell: auditctl -l | grep scope | wc -l
+          register: grep_var_auditRules
+          changed_when: false
+
+        - name: 4.1.8 Configurar reglas de ámbito si no están configuradas
+          block:
+          - name: 4.1.8 Crear el archivo scope.rules si no existe
+            ansible.builtin.file:
+              path: /etc/audit/rules.d/scope.rules
+              state: touch
+            when: grep_var_auditRules.stdout != "2"
+
+          - name: 4.1.8 Agregar reglas al archivo scope.rules
+            ansible.builtin.blockinfile:
+              path: /etc/audit/rules.d/scope.rules
+              block: |
+                -w /etc/sudoers -p wa -k scope
+                -w /etc/sudoers.d/ -p wa -k scope
+            when: grep_var_auditRules.stdout != "2"
+    
+    - name: 4.1.9. Verificar que se recogen los eventos de login y logout
+      block:
+        - name: 4.1.9 Listar los logins en /etc/audit/rules.d/audit.rules
+          ansible.builtin.command: "grep '#Control 4.1.9' /etc/audit/rules.d/audit.rules"
+          register: grep_result
+          ignore_errors: true
+
+        - name: 4.1.9 Agregar las reglas a /etc/audit/rules.d/audit.rules
+          ansible.builtin.shell: |
+            touch /etc/audt/rules.d/audit.rules
+            echo "" >> /etc/audit/rules.d/audit.rules
+            echo "#Control 4.1.9" >> /etc/audit/rules.d/audit.rules
+            echo "-w /var/log/lastlog -p wa -k logins" >> /etc/audit/rules.d/audit.rules
+            echo "-w /var/run/faillock/ -p wa -k logins" >> /etc/audit/rules.d/audit.rules
+            echo "-w /var/log/faillog -p wa -k logins" >> /etc/audit/rules.d/audit.rules
+          when: grep_result.rc != 0
+          changed_when: false
+
+    - name: 4.1.10 Verificar que la información de inicio de sesión se recoge
+      block:
+        - name: 4.1.10 Buscar la regla en audit.rules
+          ansible.builtin.shell: "grep '#Control 4.1.10' /etc/audit/rules.d/logins.rules"
+          register: grep_result
+          ignore_errors: true
+          
+        - name: 4.1.10 Configurar audit.rules para recoger información de inicio de sesión
+          ansible.builtin.shell: |
+            touch /etc/audit/rules.d/logins.rules
+            echo "" >> /etc/audit/rules.d/logins.rules
+            echo "#Control 4.1.10" >> /etc/audit/rules.d/logins.rules
+            echo "-w /var/run/utmp -p wa -k session" >> /etc/audit/rules.d/logins.rules
+            echo "-w /var/log/wtmp -p wa -k logins" >> /etc/audit/rules.d/logins.rules
+            echo "-w /var/log/btmp -p wa -k logins" >> /etc/audit/rules.d/logins.rules
+          when: grep_result.rc != 0
+          changed_when: false
+
+        - name: 4.1.10 Mostrar mensaje si se configuraron las reglas de inicio de sesión
+          ansible.builtin.debug:
+            msg: "Se configuraron las reglas de inicio de sesión en audit.rules"
+          when: grep_result.rc != 0
+
+    - name: 4.1.11 Verificar que la información de inicio de sesión se recoge
+      block:
+        - name: 4.1.11 Buscar la regla en time-change.rules
+          ansible.builtin.shell: "grep '#Control 4.1.11' /etc/audit/rules.d/time-change.rules"
+          register: grep_result
+          ignore_errors: true
+          
+        - name: 4.1.11 Configurar audit.rules para recoger eventos de modificación de fecha y hora
+          ansible.builtin.shell: |
+            touch /etc/audit/rules.d/time-change.rules
+            echo "" >> /etc/audit/rules.d/time-change.rules
+            echo "#Control 4.1.11" >> /etc/audit/rules.d/time-change.rules
+            echo "-a always,exit -F arch=b64 -S adjtimex -S settimeofday -k time-change" >> /etc/audit/rules.d/time-change.rules
+            echo "-a always,exit -F arch=b32 -S adjtimex -S settimeofday -S stime -k time-change" >> /etc/audit/rules.d/time-change.rules
+            echo "-a always,exit -F arch=b64 -S clock_settime -k time-change" >> /etc/audit/rules.d/time-change.rules
+            echo "-a always,exit -F arch=b32 -S clock_settime -k time-change" >> /etc/audit/rules.d/time-change.rules
+            echo "-w /etc/localtime -p wa -k time-change" >> /etc/audit/rules.d/time-change.rules
+          when: grep_result.rc != 0
+          changed_when: false
+
+        - name: 4.1.11 Mostrar mensaje si se configuraron las reglas de eventos de modificación de fecha y hora
+          ansible.builtin.debug:
+            msg: "Se configuraron las reglas de eventos de modificación de fecha y hora en audit.rules"
+          when: grep_result.rc != 0
+
+    - name: 4.1.12 Verificar que los eventos que modifican el entorno de red del sistema se recogen
+      block:
+        - name: 4.1.12 Buscar la regla en MAC-policy
+          ansible.builtin.shell: "grep '#Control 4.1.12' /etc/audit/rules.d/MAC-policy.rules"
+          register: grep_result
+          ignore_errors: true
+          
+        - name: 4.1.12 Configurar audit.rules para recoger eventos de modificación de MAC policy
+          ansible.builtin.shell: |
+            touch /etc/audit/rules.d/MAC-policy.rules
+            echo "" >> /etc/audit/rules.d/MAC-policy.rules
+            echo "#Control 4.1.12" >> /etc/audit/rules.d/MAC-policy.rules
+            echo "-w /etc/selinux/ -p wa -k MAC-policy" >> /etc/audit/rules.d/MAC-policy.rules
+            echo "-w /usr/share/selinux/ -p wa -k MAC-policy" >> /etc/audit/rules.d/MAC-policy.rules
+          when: grep_result.rc != 0
+          changed_when: false
+
+        - name: 4.1.12 Mostrar mensaje si se configuraron las reglas de eventos de modificación de MAC policy
+          ansible.builtin.debug:
+            msg: "Se configuraron las reglas de eventos de modificación de MAC policy en audit.rules"
+          when: grep_result.rc != 0
+
+    - name: 4.1.13. Verificar que los eventos que modifican el entorno de red del sistema se recogen
+      block:
+        - name: 4.1.13 Buscar la regla en system-locale.rules
+          ansible.builtin.shell: "grep '#Control 4.1.13' /etc/audit/rules.d/audit.rules" 
+          register: grep_result
+          ignore_errors: true
+          
+        - name: 4.1.13 Configurar audit.rules para recoger eventos de modificación del entorno de red
+          ansible.builtin.shell: |
+            touch /etc/audit/rules.d/system-locale.rules
+            echo "" >> /etc/audit/rules.d/system-locale.rules
+            echo "#Control 4.1.13" >> /etc/audit/rules.d/system-locale.rules
+            echo "-a always,exit -F arch=b64 -S sethostname -S setdomainname -k system-locale" >> /etc/audit/rules.d/system-locale.rules
+            echo "-a always,exit -F arch=b32 -S sethostname -S setdomainname -k system-locale" >> /etc/audit/rules.d/system-locale.rules
+            echo "-w /etc/issue -p wa -k system-locale" >> /etc/audit/rules.d/system-locale.rules
+            echo "-w /etc/issue.net -p wa -k system-locale" >> /etc/audit/rules.d/system-locale.rules
+            echo "-w /etc/hosts -p wa -k system-locale" >> /etc/audit/rules.d/system-locale.rules
+            echo "-w /etc/sysconfig/network -p wa -k system-locale" >> /etc/audit/rules.d/system-locale.rules
+            echo "-w /etc/sysconfig/network-scripts/ -p wa -k system-locale" >> /etc/audit/rules.d/system-locale.rules
+          when: grep_result.rc != 0
+          changed_when: false
+
+        - name: 4.1.13 Mostrar mensaje si se configuraron las reglas de eventos de modificación del entorno de red
+          ansible.builtin.debug:
+            msg: "Se configuraron las reglas de eventos de modificación del entorno de red en audit.rules"
+          when: grep_result.rc != 0
+
+    - name: 4.1.14. Verificar que los eventos de modificación de permisos de control de acceso discrecional son recogidos
+      block:
+        - name: 4.1.14 Buscar la regla en perm_mod.rules
+          ansible.builtin.shell: "grep '#Control 4.1.14' /etc/audit/rules.d/perm_mod.rules"
+          register: grep_result
+          ignore_errors: true
+          
+        - name: 4.1.14 Configurar audit.rules para recoger eventos de modificación de permisos de control de acceso discrecional
+          ansible.builtin.shell: |
+            touch /etc/audit/rules.d/perm_mod.rules
+            echo "" >> /etc/audit/rules.d/perm_mod.rules
+            echo "#Control 4.1.14" >> /etc/audit/rules.d/perm_mod.rules
+            echo "-a always,exit -F arch=b64 -S chmod -S fchmod -S fchmodat -F auid>=1000 -F auid!=4294967295 -k perm_mod" >> /etc/audit/rules.d/perm_mod.rules
+            echo "-a always,exit -F arch=b32 -S chmod -S fchmod -S fchmodat -F auid>=1000 -F auid!=4294967295 -k perm_mod" >> /etc/audit/rules.d/perm_mod.rules
+            echo "-a always,exit -F arch=b64 -S chown -S fchown -S fchownat -S lchown -F auid>=1000 -F auid!=4294967295 -k perm_mod" >> /etc/audit/rules.d/perm_mod.rules
+            echo "-a always,exit -F arch=b32 -S chown -S fchown -S fchownat -S lchown -F auid>=1000 -F auid!=4294967295 -k perm_mod" >> /etc/audit/rules.d/perm_mod.rules
+            echo "-a always,exit -F arch=b64 -S setxattr -S lsetxattr -S fsetxattr -S removexattr -S lremovexattr -S fremovexattr -F auid>=1000 -F auid!=4294967295 -k perm_mod" >> /etc/audit/rules.d/perm_mod.rules
+            echo "-a always,exit -F arch=b32 -S setxattr -S lsetxattr -S fsetxattr -S removexattr -S lremovexattr -S fremovexattr -F auid>=1000 -F auid!=4294967295 -k perm_mod" >> /etc/audit/rules.d/perm_mod.rules
+          when: grep_result.rc != 0
+          changed_when: false
+
+        - name: 4.1.14 Mostrar mensaje si se configuraron las reglas de eventos de modificación de permisos de control de acceso discrecional
+          ansible.builtin.debug:
+            msg: "Se configuraron las reglas de eventos de modificación de permisos de control de acceso discrecional en audit.rules"
+          when: grep_result.rc != 0
+
+    - name: 4.1.15. Verificar que el fichero de intentos de acceso fallido es recogido
+      block:
+        - name: 4.1.15 Buscar la regla en audit.rules
+          ansible.builtin.shell: "grep '#Control 4.1.15' /etc/audit/rules.d/access.rules"
+          ignore_errors: true
+          
+        - name: 4.1.15 Configurar audit.rules para recoger eventos de intentos de acceso fallido
+          ansible.builtin.shell: |
+            touch /etc/audit/rules.d/access.rules
+            echo "" >> /etc/audit/rules.d/access.rules
+            echo "#Control 4.1.15" >> /etc/audit/rules.d/access.rules
+            echo "-a always,exit -F arch=b64 -S creat -S open -S openat -S truncate -S ftruncate -F exit=-EACCES -F auid>=1000 -F auid!=4294967295 -k access" >> /etc/audit/rules.d/access.rules
+            echo "-a always,exit -F arch=b32 -S creat -S open -S openat -S truncate -S ftruncate -F exit=-EACCES -F auid>=1000 -F auid!=4294967295 -k access" >> /etc/audit/rules.d/access.rules
+            echo "-a always,exit -F arch=b64 -S creat -S open -S openat -S truncate -S ftruncate -F exit=-EPERM -F auid>=1000 -F auid!=4294967295 -k access" >> /etc/audit/rules.d/access.rules
+            echo "-a always,exit -F arch=b32 -S creat -S open -S openat -S truncate -S ftruncate -F exit=-EPERM -F auid>=1000 -F auid!=4294967295 -k access" >> /etc/audit/rules.d/access.rules
+          when: grep_result.rc != 0
+          changed_when: false
+
+        - name: 4.1.15 Mostrar mensaje si se configuraron las reglas de eventos de intentos de acceso fallido
+          ansible.builtin.debug:
+            msg: "Se configuraron las reglas de eventos de intentos de acceso fallido en /etc/audit/rules.d/audit.rules"
+          when: grep_result.rc != 0
+
+    - name: 4.1.16 Verificar que los eventos que modifican información en /user/group se recogen
+      block:
+        - name: 4.1.16 Buscar la regla en /etc/audit/rules.d/audit.rules
+          ansible.builtin.shell: "grep '#Control 4.1.16' /etc/audit/rules.d/identity.rules"
+          register: grep_result
+          ignore_errors: true
+
+        - name: 4.1.16 Configurar audit.rules para recoger información en /user/group
+          ansible.builtin.shell: |
+            touch /etc/audit/rules.d/identity.rules
+            echo "" >> /etc/audit/rules.d/identity.rules
+            echo "#Control 4.1.16" >> /etc/audit/rules.d/identity.rules
+            echo "-w /etc/group -p wa -k identity" >> /etc/audit/rules.d/identity.rules
+            echo "-w /etc/passwd -p wa -k identity" >> /etc/audit/rules.d/identity.rules
+            echo "-w /etc/gshadow -p wa -k identity" >> /etc/audit/rules.d/identity.rules
+            echo "-w /etc/shadow -p wa -k identity" >> /etc/audit/rules.d/identity.rules
+            echo "-w /etc/security/opasswd -p wa -k identity" >> /etc/audit/rules.d/identity.rules
+          when: grep_result.rc != 0
+          changed_when: false
+
+        - name: 4.1.16 Mostrar mensaje si se configuraron las reglas de identidad
+          ansible.builtin.debug:
+            msg: "Se configuraron las reglas de identidad en audit.rules"
+          when: grep_result.rc != 0
+
+    - name: 4.1.17. Verificar que el montaje satisfactorio del sistema de ficheros es recogido
+      block:
+        - name: 4.1.17 Buscar la regla en /etc/audit/rules.d/audit.rules
+          ansible.builtin.shell: "grep '#Control 4.1.17' /etc/audit/rules.d/mounts.rules"
+          register: grep_result
+          ignore_errors: true
+
+        - name: 4.1.17 Configurar audit.rules para recoger eventos de montaje satisfactorio del sistema de ficheros
+          ansible.builtin.shell: |
+            touch /etc/audit/rules.d/mounts.rules
+            echo "" >> /etc/audit/rules.d/mounts.rules
+            echo "#Control 4.1.17" >> /etc/audit/rules.d/mounts.rules
+            echo "-a always,exit -F arch=b64 -S mount -F auid>=1000 -F auid!=4294967295 -k mounts" >> /etc/audit/rules.d/mounts.rules
+            echo "-a always,exit -F arch=b32 -S mount -F auid>=1000 -F auid!=4294967295 -k mounts" >> /etc/audit/rules.d/mounts.rules
+          when: grep_result.rc != 0
+          changed_when: false
+
+        - name: 4.1.17 Mostrar mensaje si se verifico que el montaje satisfactorio del sistema de ficheros es recogido
+          ansible.builtin.debug:
+            msg: "Se configuraron las reglas de montaje satisfactorio del sistema de ficheros en audit.rules"
+          when: grep_result.rc != 0
+
+    #- name: 4.1.18. Verificar que el uso de comandos privilegiados es recogido 
+
+
+    - name: 4.1.19. Verificar que los eventos de ficheros borrados por usuarios son recogidos
+      block:
+        - name: 4.1.19 Verificar la arquitectura del sistema
+          ansible.builtin.command: "uname -m"
+          register: arch_result
+
+        - name: 4.1.19 Agregar reglas de auditoría para sistemas de 32 bits
+          ansible.builtin.lineinfile:
+            path: /etc/audit/rules.d/delete.rules
+            line: "-a always,exit -F arch=b32 -S unlink -S unlinkat -S rename -S renameat -F auid>=1000 -F auid!=4294967295 -k delete"
+          when: arch_result.stdout == 'i386' or "arch_result.stdout == 'i686'" 
+        
+        - name: 4.1.19 Agregar reglas de auditoría para sistemas de 64 bits
+          ansible.builtin.lineinfile:
+            path: /etc/audit/rules.d/delete.rules
+            line: "{{ item }}"
+          with_items:
+            - "-a always,exit -F arch=b64 -S unlink -S unlinkat -S rename -S renameat -F auid>=1000 -F auid!=4294967295 -k delete"
+            - "-a always,exit -F arch=b32 -S unlink -S unlinkat -S rename -S renameat -F auid>=1000 -F auid!=4294967295 -k delete"
+          when: "arch_result.stdout == 'x86_64'"
+
+    - name: 4.1.20. Verificar que la carga y descarga del módulo de kernel es recogida
+      block:
+        - name: 4.1.20 Verificar la arquitectura del sistema
+          ansible.builtin.command: "uname -m"
+          register: arch_result
+
+        - name: 4.1.20 Agregar reglas de auditoría para sistemas de 32 bits
+          ansible.builtin.lineinfile:
+            path: /etc/audit/rules.d/modules.rules
+            line: "{{ item }}"
+          with_items:
+            - "-w /sbin/insmod -p x -k modules"
+            - "-w /sbin/rmmod -p x -k modules"
+            - "-w /sbin/modprobe -p x -k modules"
+            - "-a always,exit -F arch=b32 -S init_module -S delete_module -k modules"
+          when: arch_result.stdout == 'i386' or "arch_result.stdout == 'i686'" 
+        
+        - name: 4.1.20 Agregar reglas de auditoría para sistemas de 64 bits
+          ansible.builtin.lineinfile:
+            path: /etc/audit/rules.d/modules.rules
+            line: "{{ item }}"
+          with_items:
+            - "-w /sbin/insmod -p x -k modules"
+            - "-w /sbin/rmmod -p x -k modules"
+            - "-w /sbin/modprobe -p x -k modules"
+            - "-a always,exit -F arch=b64 -S init_module -S delete_module -k modules"
+          when: "arch_result.stdout == 'x86_64'"
+
+    - name: 4.1.21. Verificar que las acciones del administrador del sistema son recogidas
+      block:
+        - name: Verificar si la regla ya existe en audit.rules
+          ansible.builtin.shell: "grep '#Control 4.1.21' /etc/audit/rules.d/audit.rules"
+          register: grep_result
+          ignore_errors: true
+
+        - name: Configurar audit.rules para recoger las acciones del administrador del sistema
+          ansible.builtin.shell: |
+            echo "" >> /etc/audit/rules.d/audit.rules
+            echo "#Control 4.1.21" >> /etc/audit/rules.d/audit.rules
+            echo "-w /var/log/sudo.log -p wa -k actions" >> /etc/audit/rules.d/audit.rules
+          when: grep_result.rc != 0
+          register: audit_config
+          changed_when: false    
+
+    - name: 4.1.22. Verificar que la configuración de la auditoría es inmutable
+      block:
+        - name: 4.1.22. Verificar si la regla ya existe en audit.rules
+          ansible.builtin.shell: "grep '#Control 4.1.22' /etc/audit/rules.d/audit.rules"
+          register: grep_result
+          ignore_errors: true
+
+        - name: 4.1.22. Configurar audit.rules para que la configuración de auditoría sea inmutable
+          ansible.builtin.shell: |
+            touch /etc/audit/rules.d/audit.rules
+            touch /etc/audit/rules.d/99-finalize.rules
+            echo "" >> /etc/audit/rules.d/audit.rules
+            echo "#Control 4.1.22" >> /etc/audit/rules.d/audit.rules
+            echo "-e 2" >> /etc/audit/rules.d/audit.rules
+          when: grep_result.rc != 0
+          changed_when: false
+
+
+        - name: 4.1.22. Verificar si la regla ya existe en audit.rules /etc/audit/rules.d/99-finalize.rules
+          ansible.builtin.shell: "grep '#Control 4.1.22' /etc/audit/rules.d/99-finalize.rules"
+          register: grep_result
+          ignore_errors: true
+
+        - name: 4.1.22. Configurar audit.rules para que la configuración de auditoría sea inmutable
+          ansible.builtin.shell: |
+            touch /etc/audit/rules.d/99-finalize.rules            
+            echo "#Control 4.1.22" >> /etc/audit/rules.d/99-finalize.rules
+            echo "-e 2" >> /etc/audit/rules.d/99-finalize.rules
+          when: grep_result.rc != 0
+          changed_when: false
+
+        - name: 4.1.22. Restaurar los contextos de SELinux
+          ansible.builtin.shell: restorecon {{ item }}
+          loop:
+            - /etc/audit/auditd.conf
+            - /etc/audit/auditaudit.rules
+            - /etc/audit/rules.d/access.rules
+            - /etc/audit/rules.d/delete.rules
+            - /etc/audit/rules.d/logins.rules
+            - /etc/audit/rules.d/modules.rules
+            - /etc/audit/rules.d/perm_mod.rules
+            - /etc/audit/rules.d/audit.rules
+            - /etc/audit/rules.d/identity.rules
+            - /etc/audit/rules.d/mounts.rules
+            - /etc/audit/rules.d/MAC-policy.rules
+            - /etc/audit/rules.d/system-locale.rules
+            - /etc/audit/rules.d/time-change.rules
+          ignore_errors: true
+
+        - name: 4.1.22. Cambiar configuraciones de auditd.conf
+          ansible.builtin.replace:
+            path: /etc/audit/auditd.conf
+            regexp: 'max_log_file = 8'
+            replace: 'max_log_file = 32'
+
+    - name: 4.2.1. Verificar que rsyslog está instalado
+      block:
+        - name: 4.2.1 Listar rsyslog y ver que esté instalado
+          ansible.builtin.command: rpm -q rsyslog
+          register: rsyslog_installed
+          changed_when: false
+
+        - name: 4.2.1 Instalar rsyslog
+          ansible.builtin.command: dnf install rsyslog -y
+          when: rsyslog_installed != 0
+          register: rsyslog_installation
+          changed_when: rsyslog_installation.rc != 0
+
+        - name: 4.2.1 Mostrar mensaje de instalación de rsyslog
+          ansible.builtin.debug:
+            msg: "rsyslog se ha instalado"
+          when: rsyslog_installation.rc == 0
+
+    - name: 4.2.2. Verificar que el servicio rsyslog está habilitado
+      block:
+        - name: 4.2.2 Comprobar si el servicio rsyslog está habilitado
+          ansible.builtin.command: systemctl is-enabled rsyslog
+          register: rsyslog_status
+          changed_when: false
+
+        - name: 4.2.2 Habilita el servicio rsyslog si no está habilitado
+          service:
+            name: rsyslog
+            state: started
+          when: rsyslog_status.rc != 0 
+
+    - name: 4.2.3. Verificar que están configurados los permisos del fichero por defecto rsyslog
+      block:
+        - name: 4.2.3 Configurar rsyslog.conf
+          ansible.builtin.lineinfile:
+            path: /etc/rsyslog.conf
+            regexp: '^$FileCreateMode'
+            line: '$FileCreateMode 0640'
+
+        - name: 4.2.3 Configurar archivos en /etc/rsyslog.d/
+          ansible.builtin.lineinfile:
+            path: "{{ item }}"
+            regexp: '^$FileCreateMode'
+            line: '$FileCreateMode 0640'
+          with_fileglob:
+            - /etc/rsyslog.d/*.conf
+
+        - name: Reiniciar el servicio rsyslog
+          service:
+            name: rsyslog
+            state: restarted
+
+    - name: Control.  Reiniciar el servicio auditd
+      block:
+        - name: Control. Reiniciar el servicio auditd
+          ansible.builtin.command: service auditd restart
+
+        - name: Control. Chequear servicio auditd
+          ansible.builtin.command: auditctl -list
+          register: auditd_output
+          ignore_errors: true
+
+        - name: Control.  Imprimir resultado
+          ansible.builtin.debug:
+            var: auditd_output.stdout
+ 
+
+    #- name: 4.2.4. Verificar que esta configurado el logging
+
+
+    #- name: 4.2.5. Verificar que rsyslog está configurado para el envío de logs al host remoto de logs
+
+
+    #- name: 4.2.6. Verificar que los mensajes remotos de rsyslog son solo aceptados en los hosts de logs designados
+
+
+    - name: 4.2.5. 4.2.6 Verificar que rsyslog está configurado para el envío de logs al host remoto de logs
+      block:
+        - name: 4.2.5. 4.2.6 Verificar que rsyslog está configurado para el envío de logs al host remoto de logs
+          ansible.builtin.shell: "grep '#4.2.5. 4.2.6 Verificar que rsyslog está configurado para el envío de logs al host remoto de logs"
+          register: grep_result
+          ignore_errors: true
+
+        - name: 4.2.5. 4.2.6 Verificar que rsyslog está configurado para el envío de logs al host remoto de logs
+          ansible.builtin.shell: |
+            echo "*.* @@10.164.13.10" >> /etc/rsyslog.conf
+          when: grep_result.rc != 0
+          changed_when: false
+
+        - name: 4.2.5. 4.2.6 Mostrar mensaje si se configuro el envío de logs al host remoto de logs
+          ansible.builtin.debug:
+            msg: "Se configuraron el envío de logs al host remoto de logs en rsyslog.conf"
+          when: grep_result.rc != 0
+    
+        - name: Reiniciar el servicio rsyslog
+          service:
+            name: rsyslog
+            state: restarted
+
+    - name: 4.2.7. Verificar que journald esta configurado para enviar log a rsyslog
+      block:
+        - name: 4.2.7 Comprobar que los registros se reenvíen a syslog
+          ansible.builtin.shell: grep -e ^\s*ForwardToSyslog /etc/systemd/journald.conf
+          register: forward_syslog_output
+          failed_when: false 
+
+        - name: 4.2.7 Agregar configuración a journald.conf
+          ansible.builtin.lineinfile:
+            path: /etc/systemd/journald.conf
+            regexp: '^ForwardToSyslog'
+            line: 'ForwardToSyslog=yes'
+          when: forward_syslog_output.rc != 0
+
+    
+    - name: 4.2.8. Verificar que journald está configurado para comprimir archivos de registro grandes
+      block:
+        - name: 4.2.8 Comprobar que los archivos grandes estén comprimidos
+          ansible.builtin.shell: grep -e ^\s*Compress /etc/systemd/journald.conf 
+          register: compress_output
+          failed_when: false
+
+        - name: 4.2.8 Agregar configuración a journald.conf
+          ansible.builtin.lineinfile:
+            path: /etc/systemd/journald.conf
+            regexp: '^Compress'
+            line: 'Compress=yes'
+          when: compress_output.rc != 0
+
+    - name: 4.2.9. Verificar que journald está configurado para escribir archivos de registro en el disco persistente
+      block: 
+        - name: 4.2.9 Comprobar que los registros se conserven en el disco
+          ansible.builtin.shell: grep -e ^\s*Storage /etc/systemd/journald.conf
+          register: storage_output
+          failed_when: false
+
+        - name: 4.2.9 Agregar configuración a journald.conf
+          ansible.builtin.lineinfile:
+            path: /etc/systemd/journald.conf
+            regexp: '^Storage'
+            line: 'Storage=persistent'
+          when: storage_output.rc != 0
+
+
+    - name: 4.2.10. Verificar que los permisos en todos los ficheros de log están configurados
+      ansible.builtin.shell: |
+        find /var/log -type f -exec chmod g-wx,o-rwx "{}" + -o -type d -exec chmod g-w,o-rwx "{}" +
+
+
+    - name: 4.3.1. Verificar que logrotate está configurado
+      block:
+        - name: Revisar /etc/logrotate.conf
+          ansible.builtin.command: cat /etc/logrotate.conf
+          register: logrotate_conf
+
+        - name: Revisar archivos en /etc/logrotate.d/
+          ansible.builtin.find:
+            paths: /etc/logrotate.d/
+            patterns: '*.conf'
+          register: logrotate_d
+
+        - name: Configurar logrotate.conf
+          ansible.builtin.lineinfile:
+            path: /etc/logrotate.conf
+            regexp: '^weekly$|^rotate 8$'
+            line: "{{ item }}"
+          with_items:
+            - weekly
+            - rotate 8
+          when: logrotate_conf.stdout.find(item) == -1
+
+        - name: Configurar archivos en /etc/logrotate.d/
+          ansible.builtin.lineinfile:
+            path: "{{ item.path }}"
+            regexp: '^weekly$|^rotate 8$'
+            line: "{{ item.line }}"
+          with_items: "{{ logrotate_d.files }}"
+          when: logrotate_conf.stdout.find(item) == -1
+  handlers:
+    - name: update_grub
+      ansible.builtin.command: grub2-mkconfig -o /boot/grub2/grub.cfg
+  vars:
+    existing_login_rules: "{{ lookup('file', '/etc/audit/rules.d/logins.rules').split('\n') }}"
