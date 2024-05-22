@@ -1,0 +1,214 @@
+---
+- name: Mantenimiento del sistema 
+  hosts: all
+  become: true
+  gather_facts: yes
+
+  tasks:
+    #- name: 6.1.1. Permisos del fichero de auditoría del sistema # Falso positivo-excepcion
+    #  ansible.builtin.shell: |
+    #    /usr/bin/rpm -Va --nomtime --nosize --nomd5 --nolinkto | /usr/bin/awk '{ print } END { if (NR==0) print "none" }'
+    #  register: audit_files_perm
+    #  failed_when: "'none' not in audit_files_perm.stdout"
+    #  ignore_errors: true
+
+    - name: 6.1.2. Verificar que los permisos en /etc/passwd están configurados
+      block:
+        - name: 6.1.2. Establecer permisos en /etc/passwd
+          ansible.builtin.shell: |
+            chown root:root /etc/passwd
+            chmod 644 /etc/passwd
+
+    - name: 6.1.3. Verificar que los permisos en /etc/shadow están configurados
+      block:
+        - name: 6.1.3. Establecer permisos en /etc/shadow
+          ansible.builtin.shell: |
+            chown root:root /etc/shadow
+            chmod 000 /etc/shadow
+
+    - name: 6.1.4. Verificar que los permisos en /etc/group están configurados
+      block:
+        - name: 6.1.4. Establecer permisos en /etc/group
+          ansible.builtin.shell: |
+            chown root:root /etc/group
+            chmod 644 /etc/group
+
+    - name: 6.1.5. Verificar que los permisos en /etc/gshadow están configurados
+      block:
+        - name: 6.1.5. Establecer permisos en /etc/gshadow
+          ansible.builtin.shell: |
+            chown root:root /etc/gshadow
+            chmod 000 /etc/gshadow
+
+    - name: 6.1.6. Verificar que los permisos en /etc/passwd- están configurados
+      block:
+        - name: 6.1.6. Establecer permisos en /etc/passwd-
+          ansible.builtin.shell: |
+            chown root:root /etc/passwd-
+            chmod 600 /etc/passwd-
+
+    - name: 6.1.7. Verificar que los permisos en /etc/shadow- están configurados
+      block:
+        - name: 6.1.7. Establecer permisos en /etc/shadow-
+          ansible.builtin.shell: |
+            chown root:root /etc/shadow-
+            chmod 000 /etc/shadow-
+
+    - name: 6.1.8. Verificar que los permisos en /etc/group- están configurados
+      block:
+        - name: 6.1.8. Establecer permisos en /etc/group-
+          ansible.builtin.shell: |
+            chown root:root /etc/group-
+            chmod u-x,go-wx /etc/group-
+
+    - name: 6.1.9. Verificar que los permisos en /etc/gshadow- están configurados
+      block:
+        - name: Establecer permisos en /etc/gshadow-
+          ansible.builtin.shell: |
+            chown root:root /etc/gshadow-
+            chmod 000 /etc/gshadow-
+
+    #- name: 6.1.10. Verificar que no existe ningún fichero modificable por todos los usuarios
+    #  ansible.builtin.shell: |
+    #    df --local -P | awk {'if (NR!=1) print $6'} | xargs -I '{}' find '{}' -xdev -type f -perm -0002
+    #  register: mod_files
+    #  failed_when: "mod_files.stdout_lines | length > 0"
+    #  ignore_errors: true
+
+    #- name: 6.1.11. Verificar que no existe ningún fichero o directorio sin propietario
+    #  ansible.builtin.shell: |
+    #    df --local -P | awk {'if (NR!=1) print $6'} | xargs -I '{}' find '{}' -xdev -nouser
+    #  register: owner_files
+    #  failed_when: "owner_files.stdout_lines | length > 0"
+    #  ignore_errors: true
+
+    #- name: 6.1.12. Verificar que no existen ficheros o directorios sin grupo
+    #  ansible.builtin.shell: |
+    #    df --local -P | awk {'if (NR!=1) print $6'} | xargs -I '{}' find '{}' -xdev -nogroup
+    #  register: group_files
+    #  failed_when: "group_files.stdout_lines | length > 0"
+    #  ignore_errors: true
+
+    #- name: 6.1.13. Verificar SUID ejecutables
+    #  ansible.builtin.shell: |
+    #    df --local -P | awk '{if (NR!=1) print $6}' | xargs -I '{}' find '{}' -xdev -type f -perm -4000
+    #  register: siud_files
+    #  failed_when: "siud_files.stdout_lines | length > 0"
+    #  ignore_errors: true
+
+    #- name: 6.1.14. Verificar SGID ejecutables
+    #  ansible.builtin.shell: |
+    #    df --local -P | awk '{if (NR!=1) print $6}' | xargs -I '{}' find '{}' -xdev -type f -perm -2000
+    #  register: sgid_files
+    #  failed_when: "sgid_files.stdout_lines | length > 0"
+    #  ignore_errors: true
+
+    #- name: 6.2.1. Verificar que los campos de contraseña no están vacíos
+    #  block:
+    #    - name: 6.2.1. Verificar contraseñas en /etc/shadow
+    #      ansible.builtin.command: "awk -F: '$2 == \"\" {print $1}' /etc/shadow"
+    #      register: cuentas_sin_contrasena
+
+    #    - name: 6.2.1. Bloquear cuentas sin contraseña
+    #      ansible.builtin.command: "passwd -l {{ item }}"
+    #      with_items: "{{ cuentas_sin_contrasena.stdout_lines }}"
+    #      ignore_errors: true
+
+    #- name: 6.2.2. Verificar que no existen entradas con “+” en /etc/passwd
+    #  block:
+    #    - name: 6.2.2. Ejecutar el comando y almacenar la salida
+    #      command: grep '^\+:' /etc/passwd
+    #      register: passwd_plus
+    #      ignore_errors: true
+
+    #    - name: 6.2.2. Eliminar usuarios con entrada heredada '+'
+    #      ansible.builtin.user:
+    #        name: "{{ item }}"
+    #        state: absent
+    #      with_lines: cat /etc/passwd | grep '+'
+    #      when: passwd_plus.stdout_lines | length > 0
+    #      ignore_errors: true
+
+    #- name: 6.2.3. Verificar la integridad de la ruta de root
+    # Se aplicó de forma manual
+
+    #- name: 6.2.4. Verificar que no existen entradas con “+” en /etc/shadow
+    #  block:
+    #    - name: 6.2.4. Ejecutar el comando y almacenar la salida
+    #      command: grep '^\+:' /etc/shadow
+    #      register: plus_shadow
+    #      ignore_errors: true
+
+    #    - name: 6.2.4. Eliminar usuarios con entrada heredada '+'
+    #      ansible.builtin.user:
+    #        name: "{{ item }}"
+    #        state: absent
+    #      with_lines: cat /etc/shadow | grep '+'
+    #      when: plus_shadow.stdout_lines | length > 0
+    #      ignore_errors: true
+
+    #- name: 6.2.5. Verificar que no existen entradas con “+” en /etc/group
+    #  block:
+    #    - name: 6.2.5. Ejecutar el comando y almacenar la salida
+    #      command: grep '^\+:' /etc/group
+    #      register: plus_group
+    #      ignore_errors: true
+
+    #    - name: 6.2.5. Eliminar usuarios con entrada heredada '+'
+    #      ansible.builtin.user:
+    #        name: "{{ item }}"
+    #        state: absent
+    #      with_lines: cat /etc/group | grep '+'
+    #      when: plus_group.stdout_lines | length > 0
+    #      ignore_errors: true
+
+    - name: 6.2.6. Verificar que el usuario root es el único con la cuenta UID 0
+      block:
+        - name: 6.2.6. Comprobar que el usuario root es el único con la cuenta UID 0
+          ansible.builtin.shell: |
+            cat /etc/passwd | awk -F: '($3 == 0) { print $1 }'
+          register: root_uid
+          failed_when: root_uid.stdout_lines|length > 0
+          ignore_errors: true
+
+
+    #- name: 6.2.7. Verificar que los permisos de los directorios home están configurados como 750 o más restrictivo
+
+
+    #- name: 6.2.8. Verificar que los usuarios son propietarios de su directorio home
+
+    #- name: 6.2.9. Verificar que los ficheros de usuarios con punto no pueden ser escritos por grupo o por todos los usuarios
+
+
+    #- name: 6.2.10. Verificar que no hay usuarios con ficheros .forward
+
+
+    #- name: 6.2.11. Verificar que no hay usuarios con ficheros .netrc
+
+
+    #- name: 6.2.12. Verificar que los ficheros .netrc de usuarios no son accesibles al grupo o a todos los usuarios
+
+
+    #- name: 6.2.13. Verificar que no hay usuarios con ficheros .rhosts
+
+
+    #- name: 6.2.14. Verificar que todos los grupos en /etc/passwd existen en /etc/group
+
+
+    #- name: 6.2.15. Verificar que no existen UIDs duplicados
+
+
+    #- name: 6.2.16. Verificar que no existen GIDs duplicados
+
+
+    #- name: 6.2.17. Verificar que no existen nombres de usuarios duplicados
+
+
+    #- name: 6.2.18. Verificar que no existen nombres de grupos duplicados
+
+
+    #- name: 6.2.19. Verificar que shadow group esta vacio
+
+
+    #- name: 6.2.20. Verificar que está establecido el directorio home de los usuarios
+
