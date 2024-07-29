@@ -246,7 +246,7 @@
 
         - name: 1.4.2 Agregar tarea a crontab si no existe
           ansible.builtin.shell: "echo 0 5 * * * /usr/sbin/aide --check >> /etc/crontab"
-          when: "'0 5 * * * /usr/sbin/aide --check' not in crontab_root.stdout_lines"
+#          when: "'0 5 * * * /usr/sbin/aide --check' not in crontab_root.stdout_lines"
 
 
     - name: 1.5.1. Verificar que los permisos en bootloader están configurados 
