@@ -267,10 +267,10 @@
 
         - name: 1.5.1 Establecer permisos en /boot/grub/grub.cfg y /boot/grub2/grubenv
           ansible.builtin.shell: |
-            chown root:root /boot/grub/grub.cfg
-            chmod og-rwx /boot/grub/grub.cfg
-            chown root:root /boot/grub/grubenv
-            chmod og-rwx /boot/grub/grubenv
+#            chown root:root /boot/grub/grub.cfg
+#            chmod og-rwx /boot/grub/grub.cfg
+            chown root:root /boot/grub2/grubenv
+            chmod og-rwx /boot/grub2/grubenv
 
     # - name: 1.5.2. Verificar que la contraseña de bootloader está configurada
     #Se aplicó de forma manual
