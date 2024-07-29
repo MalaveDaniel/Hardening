@@ -259,9 +259,9 @@
 
     - name: 1.5.1. Verificar que los permisos en bootloader están configurados 
       block:
-        - name: 1.5.1 Comprobar permisos bootloader en /boot/grub/grub.cfg
-          ansible.builtin.command: stat /boot/grub/grub.cfg
-          register: stat_grubcfg
+        #- name: 1.5.1 Comprobar permisos bootloader en /boot/grub/grub.cfg
+         # ansible.builtin.command: stat /boot/grub/grub.cfg
+         # register: stat_grubcfg
 
         - name: 1.5.1 Comprobar permisos bootloader en /boot/grub/grubenv
           ansible.builtin.command: stat /boot/grub/grubenv
