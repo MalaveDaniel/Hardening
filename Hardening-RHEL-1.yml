@@ -237,8 +237,8 @@
 
     - name: 1.4.2. Verificar que la integridad del sistema de ficheros es chequeada regularmente #Se aplicó de manera manual
       block:
-        - name: 1.4.2 Establecer crontab para root
-          ansible.builtin.shell: "echo 0 5 * * * /usr/sbin/aide --check >> /etc/crontab' | crontab /etc/crontab"
+#        - name: 1.4.2 Establecer crontab para root
+#          ansible.builtin.shell: "echo 0 5 * * * /usr/sbin/aide --check >> /etc/crontab' | crontab /etc/crontab"
 
         #- name: 1.4.2 Verificar crontab para root
         #  ansible.builtin.shell: "crontab -u root -l"
