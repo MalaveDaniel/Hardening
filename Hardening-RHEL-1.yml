@@ -5,6 +5,12 @@
   gather_facts: yes
 
   tasks:
+    - name: 1.1.0 Actualizacion de de paquetes
+      ansible.builtin.command: yum -y update --security
+    - name: 1.1.0 cambio de configuracion modprobe
+      ansible.builtin.command: modprobe -r usb_storage;
+    - name: 1.1.0 cambio de configuracion modprobe
+      ansible.builtin.command: modprobe -r uas usb_storage;
     - name: 1.1.1. Verificar que el montaje del sistema de ficheros cramfs, freexvfs, jffs2, hfs, hfsplus, squashfs, udf, vfat está deshabilitado
       block:
         - name: 1.1.1. Verificar modificar el fichero cramfs
