@@ -264,7 +264,7 @@
          # register: stat_grubcfg
 
         - name: 1.5.1 Comprobar permisos bootloader en /boot/grub/grubenv
-          ansible.builtin.command: stat /boot/grub/grubenv
+          ansible.builtin.command: stat /boot/grub2/grubenv
           register: stat_grubenv
 
         - name: 1.5.1 Establecer permisos en /boot/grub/grub.cfg y /boot/grub2/grubenv
