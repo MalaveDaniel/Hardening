@@ -11,6 +11,8 @@
 #      ansible.builtin.command: modprobe -r usb_storage;
 #    - name: 1.1.0 cambio de configuracion modprobe
 #      ansible.builtin.command: modprobe -r uas usb_storage;
+#            chown root:root /boot/grub/grub.cfg
+#            chmod og-rwx /boot/grub/grub.cfg
     - name: 1.1.1. Verificar que el montaje del sistema de ficheros cramfs, freexvfs, jffs2, hfs, hfsplus, squashfs, udf, vfat está deshabilitado
       block:
         - name: 1.1.1. Verificar modificar el fichero cramfs
@@ -267,8 +269,6 @@
 
         - name: 1.5.1 Establecer permisos en /boot/grub/grub.cfg y /boot/grub2/grubenv
           ansible.builtin.shell: |
-#            chown root:root /boot/grub/grub.cfg
-#            chmod og-rwx /boot/grub/grub.cfg
             chown root:root /boot/grub2/grubenv
             chmod og-rwx /boot/grub2/grubenv
 
