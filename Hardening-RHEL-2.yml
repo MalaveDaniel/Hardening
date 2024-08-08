@@ -69,21 +69,21 @@
         #  when: chrony_config.rc == 0 and "'server 10.0.0.2' not in chrony_config.stdout"
 
 
-    - name: 2.2.2. Verificar que el sistema X Window no está instalado
-      block:
-        - name:  2.2.2 Verificar si xorg-x11 esta instalado
-          ansible.builtin.command: rpm -qa 'xorg-x11*'
-          register: xorg_check
-          failed_when: false
+#    - name: 2.2.2. Verificar que el sistema X Window no está instalado
+#      block:
+#        - name:  2.2.2 Verificar si xorg-x11 esta instalado
+#          ansible.builtin.command: rpm -qa 'xorg-x11*'
+#          register: xorg_check
+#          failed_when: false
 
 
-        - name:  2.2.2 Remover paquetes xorg-x11*
-          ansible.builtin.yum:
-            name: "{{ item }}"
-            state: absent
-          with_items:
-            - xorg-x11*
-          when: xorg_check.rc == 0
+#        - name:  2.2.2 Remover paquetes xorg-x11*
+#          ansible.builtin.yum:
+#            name: "{{ item }}"
+#            state: absent
+#          with_items:
+#            - xorg-x11*
+#          when: xorg_check.rc == 0
 
 
     - name: 2.2.3. Verificar que el servicio rsync no está habilitado
