@@ -676,4 +676,17 @@
     existing_login_rules: "{{ lookup('file', '/etc/audit/rules.d/logins.rules').split('\n') }}"
     
     - name: 4.1.22. Verificar si la regla ya existe en audit.rules
-      ansible.builtin.shell: "auditctl -R /etc/audit/rules.d/*"
+      ansible.builtin.shell: |
+       auditctl -R /etc/audit/rules.d/99-finalize.rules
+       auditctl -R /etc/audit/rules.d/access.rules
+       auditctl -R /etc/audit/rules.d/audit.rules
+       auditctl -R /etc/audit/rules.d/delete.rules
+       auditctl -R /etc/audit/rules.d/identity.rules
+       auditctl -R /etc/audit/rules.d/logins.rules 
+       auditctl -R /etc/audit/rules.d/MAC-policy.rules
+       auditctl -R /etc/audit/rules.d/modules.rules
+       auditctl -R /etc/audit/rules.d/mounts.rules
+       auditctl -R /etc/audit/rules.d/perm_mod.rules
+       auditctl -R /etc/audit/rules.d/scope.rules
+       auditctl -R /etc/audit/rules.d/system-locale.rules
+       auditctl -R /etc/audit/rules.d/time-change.rules
