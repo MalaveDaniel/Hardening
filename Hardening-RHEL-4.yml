@@ -674,3 +674,6 @@
       ansible.builtin.command: grub2-mkconfig -o /boot/grub2/grub.cfg
   vars:
     existing_login_rules: "{{ lookup('file', '/etc/audit/rules.d/logins.rules').split('\n') }}"
+    
+    - name: 4.1.22. Verificar si la regla ya existe en audit.rules
+      ansible.builtin.shell: "auditctl -R /etc/audit/rules.d/*"
