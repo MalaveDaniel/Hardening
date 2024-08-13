@@ -346,3 +346,6 @@
         sysctl -w net.ipv4.conf.all.send_redirects=0 
         sysctl -w net.ipv4.conf.default.send_redirects=0
 
+    - name: Control. Aplicar configuraciones del kernel. 3.2.9
+      ansible.builtin.shell: |
+        nmcli radio all off
