@@ -544,7 +544,7 @@
     - name: 4.2.5. 4.2.6 Verificar que rsyslog está configurado para el envío de logs al host remoto de logs
       block:
         - name: 4.2.5. 4.2.6 Verificar que rsyslog está configurado para el envío de logs al host remoto de logs
-          ansible.builtin.shell: "grep '#4.2.5. 4.2.6 Verificar que rsyslog está configurado para el envío de logs al host remoto de logs"
+          ansible.builtin.shell: "grep #4.2.5. 4.2.6 Verificar que rsyslog está configurado para el envío de logs al host remoto de logs"
           register: grep_result
           ignore_errors: true
 
