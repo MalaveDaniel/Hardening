@@ -668,33 +668,33 @@
 
 #############################################################################################################   
 
-    - name: 5.5.1. Verificar que la contraseña tiene una caducidad de noventa días o menor # El login de root falla con este control
-      block:
-        - name: 5.5.1 Buscar la regla en /etc/login.defs
-          ansible.builtin.shell: grep '^PASS_MAX_DAYS[[:space:]]\+99999$' /etc/login.defs
-          register: grep_result
-          ignore_errors: true      
+#    - name: 5.5.1. Verificar que la contraseña tiene una caducidad de noventa días o menor # El login de root falla con este control
+#      block:
+#        - name: 5.5.1 Buscar la regla en /etc/login.defs
+#          ansible.builtin.shell: grep '^PASS_MAX_DAYS[[:space:]]\+99999$' /etc/login.defs
+#          register: grep_result
+#          ignore_errors: true      
       
-        - name: 5.5.1 Verificar y ejecutar requisitos /etc/login.defs
-          ansible.builtin.shell: |
-            sed -i 's/^PASS_MAX_DAYS[[:space:]]\+99999$/PASS_MAX_DAYS   90/g' /etc/login.defs
-          when: grep_result.stdout != ''
-          changed_when: false
+#        - name: 5.5.1 Verificar y ejecutar requisitos /etc/login.defs
+#          ansible.builtin.shell: |
+#            sed -i 's/^PASS_MAX_DAYS[[:space:]]\+99999$/PASS_MAX_DAYS   90/g' /etc/login.defs
+#          when: grep_result.stdout != ''
+#          changed_when: false
           
-        - name: 5.5.1 Obtener lista de usuarios con contraseñas configuradas
-          ansible.builtin.shell: |
-            grep ':\$' /etc/shadow | cut -d':' -f1
-          register: userpasswordmax
-          changed_when: false
+#        - name: 5.5.1 Obtener lista de usuarios con contraseñas configuradas
+#          ansible.builtin.shell: |
+#            grep ':\$' /etc/shadow | cut -d':' -f1
+#          register: userpasswordmax
+#          changed_when: false
     
-        - name: 5.5.1 Modificar los parámetros de usuario
-          ansible.builtin.command: "chage --maxdays 90 {{ item }}"
-          loop: "{{ userpasswordmax.stdout_lines }}"
+#        - name: 5.5.1 Modificar los parámetros de usuario
+#          ansible.builtin.command: "chage --maxdays 90 {{ item }}"
+#          loop: "{{ userpasswordmax.stdout_lines }}"
         
-        - name: 5.1.1 Control. Aplicar passwd -x -1 root
-          ansible.builtin.shell: |
-            passwd -x -1 root
-          ignore_errors: true    
+#        - name: 5.1.1 Control. Aplicar passwd -x -1 root
+#          ansible.builtin.shell: |
+#            passwd -x -1 root
+#          ignore_errors: true    
 
     - name: 5.5.2. Verificar que la contraseña tiene una caducidad de noventa días o menor
       block:
