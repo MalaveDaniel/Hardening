@@ -393,16 +393,16 @@
           ansible.builtin.command: "uname -m"
           register: arch_result
 
-        - name: 4.1.20 Agregar reglas de auditoría para sistemas de 32 bits
-          ansible.builtin.lineinfile:
-            path: /etc/audit/rules.d/modules.rules
-            line: "{{ item }}"
-          with_items:
-            - "-w /sbin/insmod -p x -k modules"
-            - "-w /sbin/rmmod -p x -k modules"
-            - "-w /sbin/modprobe -p x -k modules"
-            - "-a always,exit -F arch=b32 -S init_module -S delete_module -k modules"
-          when: arch_result.stdout == 'i386' or "arch_result.stdout == 'i686'" 
+#        - name: 4.1.20 Agregar reglas de auditoría para sistemas de 32 bits
+#          ansible.builtin.lineinfile:
+#            path: /etc/audit/rules.d/modules.rules
+#            line: "{{ item }}"
+#          with_items:
+#            - "-w /sbin/insmod -p x -k modules"
+#            - "-w /sbin/rmmod -p x -k modules"
+#            - "-w /sbin/modprobe -p x -k modules"
+#            - "-a always,exit -F arch=b32 -S init_module -S delete_module -k modules"
+#          when: arch_result.stdout == 'i386' or "arch_result.stdout == 'i686'" 
         
         - name: 4.1.20 Agregar reglas de auditoría para sistemas de 64 bits
           ansible.builtin.lineinfile:
