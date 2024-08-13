@@ -403,7 +403,7 @@
             touch /etc/audit/rules.d/modules.rules
             echo "" >> /etc/audit/rules.d/modules.rules
             echo "#Control 4.1.20" >> /etc/audit/rules.d/modules.rules
-          when: grep_result_delete.rc != 0
+          when: grep_result_modules.rc != 0
           changed_when: false
 
         - name: 4.1.20 Agregar reglas de auditoría para sistemas de 32 bits
