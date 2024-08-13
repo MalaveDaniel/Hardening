@@ -351,6 +351,20 @@
 
     #- name: 4.1.18. Verificar que el uso de comandos privilegiados es recogido 
 
+    - name: 4.1.19. Verificar que los eventos de ficheros borrados por usuarios son recogidos
+      block:
+        - name: 4.1.19 Buscar la regla en /etc/audit/rules.d/delete.rules
+          ansible.builtin.shell: "grep '#Control 4.1.19' /etc/audit/rules.d/delete.rules"
+          register: grep_result_delete
+          ignore_errors: true
+
+        - name: 4.1.19 Configurar audit.rules para recoger eventos de montaje satisfactorio del sistema de ficheros
+          ansible.builtin.shell: |
+            touch /etc/audit/rules.d/delete.rules
+            echo "" >> /etc/audit/rules.d/delete.rules
+            echo "#Control 4.1.19" >> /etc/audit/rules.d/delete.rules
+          when: grep_result_delete.rc != 0
+          changed_when: false
 
     - name: 4.1.19. Verificar que los eventos de ficheros borrados por usuarios son recogidos
       block:
