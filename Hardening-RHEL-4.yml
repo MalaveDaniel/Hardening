@@ -392,17 +392,30 @@
         - name: 4.1.20 Verificar la arquitectura del sistema
           ansible.builtin.command: "uname -m"
           register: arch_result
+          
+        - name: 4.1.20 Buscar la regla en /etc/audit/rules.d/modules.rules
+          ansible.builtin.shell: "grep '#Control 4.1.20' /etc/audit/rules.d/modules.rules"
+          register: grep_result_modules
+          ignore_errors: true
 
-#        - name: 4.1.20 Agregar reglas de auditoría para sistemas de 32 bits
-#          ansible.builtin.lineinfile:
-#            path: /etc/audit/rules.d/modules.rules
-#            line: "{{ item }}"
-#          with_items:
-#            - "-w /sbin/insmod -p x -k modules"
-#            - "-w /sbin/rmmod -p x -k modules"
-#            - "-w /sbin/modprobe -p x -k modules"
-#            - "-a always,exit -F arch=b32 -S init_module -S delete_module -k modules"
-#          when: arch_result.stdout == 'i386' or "arch_result.stdout == 'i686'" 
+        - name: 4.1.20 Configurar modules.rules para verificar que la carga y descarga del modulo del kernel es recogida
+          ansible.builtin.shell: |
+            touch /etc/audit/rules.d/modules.rules
+            echo "" >> /etc/audit/rules.d/modules.rules
+            echo "#Control 4.1.20" >> /etc/audit/rules.d/modules.rules
+          when: grep_result_delete.rc != 0
+          changed_when: false
+
+        - name: 4.1.20 Agregar reglas de auditoría para sistemas de 32 bits
+          ansible.builtin.lineinfile:
+            path: /etc/audit/rules.d/modules.rules
+            line: "{{ item }}"
+          with_items:
+            - "-w /sbin/insmod -p x -k modules"
+            - "-w /sbin/rmmod -p x -k modules"
+            - "-w /sbin/modprobe -p x -k modules"
+            - "-a always,exit -F arch=b32 -S init_module -S delete_module -k modules"
+          when: arch_result.stdout == 'i386' or "arch_result.stdout == 'i686'" 
         
         - name: 4.1.20 Agregar reglas de auditoría para sistemas de 64 bits
           ansible.builtin.lineinfile:
